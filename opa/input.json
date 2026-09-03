@@ -1,0 +1,31 @@
+{
+    "subj": {
+        "attr": [
+            {
+                "name": "johndoe"
+            },
+            {
+                "domain": "geom_sac"
+            }
+        ]
+    },
+    "obj": {
+        "attr": [
+            {
+                "name": "johndoe"
+            },
+            {
+                "domain": "geom_sac"
+            }
+        ]
+    },
+    "action": {
+        "attr": [
+            {
+                "addEntity": {
+                    "TEST": "test"
+                }
+            }
+        ]
+    }
+}

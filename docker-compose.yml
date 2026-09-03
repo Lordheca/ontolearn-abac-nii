@@ -1,0 +1,46 @@
+services:
+  mysql:
+    image: mysql:8.0.32
+    environment:
+        - MYSQL_ROOT_PASSWORD=123456
+    ports:
+        - 3306:3306
+    networks:
+        - abac_nii
+    volumes:
+        - abac_nii-value:/var/lib/mysql
+
+  inheritance_service:
+    image: abac-inheritance
+    build:
+      context: ./inheritance_service
+      dockerfile: Dockerfile
+    ports:
+      - "5004:5004"
+    env_file:
+      - ./inheritance_service/.env
+    environment:
+      - OPA_URL=http://opa:8181/v1/data/policy/allow
+      - SQLALCHEMY_DATABASE_URI=mysql+aiomysql://root:123456@mysql:3306/abac_nii
+    networks:
+      - abac_nii
+    depends_on:
+      - mysql
+      - opa
+
+  opa:
+    build:
+      context: ./opa
+    ports:
+      - "8181:8181"
+    volumes:
+      - ./opa/policy.rego:/policy/policy.rego:ro
+    networks:
+      - abac_nii
+
+networks:
+  abac_nii:
+    driver: bridge
+
+volumes:
+  abac_nii-value:

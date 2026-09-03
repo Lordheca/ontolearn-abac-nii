@@ -1,0 +1,7 @@
+.venv
+.idea
+venv
+*.pyc
+.DS_Store
+# Local/dev credentials that should never be committed
+.env.test
