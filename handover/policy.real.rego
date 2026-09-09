@@ -48,3 +48,20 @@ allow if {
 	input.resource.type in {"task", "playground"}
 	input.action.name == "write"
 }
+
+# A MACHINE (a project-scoped API key, see ApiKey in schema.prisma) drives the ML
+# pipeline scripts (examples/*/playground.py, upload.py, 02_prediction.py): it may
+# read and write data, tasks, playground tasks and sources within that one project.
+# It has no access to settings, project management, statistics or user administration.
+allow if {
+	input.subject.role == "MACHINE"
+	input.resource.type in {"data", "task", "playground", "source"}
+	input.action.name in {"read", "write"}
+}
+
+# A MACHINE may also report training statistics for its project.
+allow if {
+	input.subject.role == "MACHINE"
+	input.resource.type == "statistics"
+	input.action.name == "write"
+}
