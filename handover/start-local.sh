@@ -32,6 +32,8 @@ ABAC_DB_PORT=3306   # ABAC MySQL
 ANNOTATOR_PORT=3000 # Next dev server
 ANNOTATOR_DB_PORT=3307
 MAILDEV_PORT=1080
+MINIO_PORT=9000 #MinIO / S3
+MINIO_CONSOLE_PORT=9001
 
 DO_SEED=0
 DO_DEV=1
@@ -252,6 +254,14 @@ ABAC_SERVER_URL="http://localhost:$ABAC_PORT"
 ABAC_SECRET="$SHARED_ABAC_SECRET"
 ABAC_CACHE_TTL=3600
 ABAC_CACHE_SIZE_LIMIT=10000
+
+# MinIO from docker-compose.yml, published on $MINIO_PORT.
+S3_ENDPOINT="http://localhost:$MINIO_PORT"
+S3_BUCKET=ontolearn-storage
+S3_ACCESS_KEY=minioadmin
+S3_SECRET_KEY=minioadmin
+S3_REGION=us-east-1
+S3_FORCE_PATH_STYLE=true
 EOF
 	ok "created .env.local"
 fi
@@ -286,12 +296,22 @@ fi
 
 # Only 'db' and 'maildev' — a bare 'up -d' would also build the app image from the
 # Dockerfile, which is redundant when running the dev server.
-info "starting MariaDB and maildev"
-$ANNOTATOR_DC up -d db maildev
+info "starting MariaDB,maildev adn MinIO"
+$ANNOTATOR_DC up -d db maildev minio
 
 annotator_db_ready() { $ANNOTATOR_DC exec -T db mariadb -uapp -pChangeMe -e 'SELECT 1' app; }
 wait_for "MariaDB" 180 annotator_db_ready ||
 	die "MariaDB never became reachable — check: $ANNOTATOR_DC logs db"
+
+wait_for "Min_IO" 60 http_ok "http://localhost:$MINIO_PORT/minio/health/live" || 
+	die "MinIO never became reachable - check: $ANNOTATOR_DC logs minio"
+
+info "ensuring the ontolearn-storage bucket exists"
+docker run --rm --network host \
+	-e MC_HOST_local="http://minioadmin:minioadmin@localhost:$MINIO_PORT" \
+	quay.io/minio/mc mb --ignore-existing local/ontolearn-storage ||
+	die "could not create the MinIO bucket — check MinIO is reachable at :$MINIO_PORT"
+ok "bucket ontolearn-storage ready"
 
 info "applying prisma migrations"
 npx prisma migrate deploy
@@ -311,6 +331,7 @@ printf '    %-22s %s\n' "annotator" "http://localhost:$ANNOTATOR_PORT"
 printf '    %-22s %s\n' "ABAC service (docs)" "http://localhost:$ABAC_PORT/docs"
 printf '    %-22s %s\n' "OPA" "http://localhost:$OPA_PORT/health"
 printf '    %-22s %s\n' "maildev (magic links)" "http://localhost:$MAILDEV_PORT"
+printf '    %-22s %s\n' "MinIO console" "http://localhost:$MINIO_CONSOLE_PORT (minioadmin/minioadmin)"
 printf '    %-22s %s\n' "annotator DB" "mysql://app:ChangeMe@localhost:$ANNOTATOR_DB_PORT/app"
 printf '    %-22s %s\n' "ABAC DB" "mysql://root:123456@localhost:$ABAC_DB_PORT/abac_nii"
 

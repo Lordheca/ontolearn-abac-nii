@@ -1,0 +1,40 @@
+feat: wire MinIO into start-local.sh, fix handover scripts' missing +x (Phase 2 Step 7)
+
+File Storage Remediation Plan, Phase 2 Step 7. start-local.sh now
+brings up the annotator's new minio service alongside db/maildev,
+waits for it, and creates its bucket -- so a fresh environment (the
+team growing to 2 people) gets a working S3-compatible backend with
+no manual steps.
+
+- handover/start-local.sh:
+  - MINIO_PORT / MINIO_CONSOLE_PORT constants
+  - .env.local template: S3_ENDPOINT/S3_BUCKET/S3_ACCESS_KEY/
+    S3_SECRET_KEY/S3_REGION/S3_FORCE_PATH_STYLE, matching the minio
+    service's hardcoded credentials
+  - `up -d db maildev` -> `up -d db maildev minio`, with its own
+    wait_for against MinIO's /minio/health/live
+  - bucket creation via quay.io/minio/mc, idempotent
+    (--ignore-existing). First attempt used
+    `sh -c "mc alias set ... && mc mb ..."` and failed --
+    quay.io/minio/mc's ENTRYPOINT is mc itself, not a shell, so sh
+    was parsed as an mc subcommand ("sh is not a recognized
+    command"). Fixed by dropping the shell wrapper and
+    authenticating via the MC_HOST_<alias> env var instead, so
+    mc mb runs directly with no shell involved
+  - stack-ready summary: MinIO console line
+
+- handover/start-local.sh, handover/init-local.sh: chmod +x. Both
+  were committed as mode 100644 in the original "Initial import",
+  never executable in git -- masked until now by a loose, untracked
+  copy of start-local.sh at the project root that had chmod +x
+  applied manually, outside git. Replacing that loose copy with a
+  symlink into this repo (ln -s ABAC_NII/handover/start-local.sh
+  start-local.sh at the project root, so the two can't diverge
+  again) surfaced the missing bit as a plain "Permission denied".
+
+Verified end-to-end in WSL: MinIO starts alongside mysql/opa/
+inheritance_service and db/maildev, the bucket is created, and
+npm run dev boots clean reading the new S3_* values from .env.local
+-- no environment-validation error.
+
+Co-Authored-By: Claude Sonnet 5 
