@@ -34,6 +34,11 @@ ANNOTATOR_DB_PORT=3307
 MAILDEV_PORT=1080
 MINIO_PORT=9000 #MinIO / S3
 MINIO_CONSOLE_PORT=9001
+# MinIO no longer publishes public images: quay.io answers 401 and Docker Hub removed
+# them, so these pinned tags must already be in the local image cache (see
+# handover/README.md, "MinIO images"). MINIO_IMAGE must match docker-compose.yml.
+MINIO_IMAGE="quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z"
+MINIO_MC_IMAGE="quay.io/minio/mc:RELEASE.2025-08-13T08-35-41Z"
 
 DO_SEED=0
 DO_DEV=1
@@ -98,6 +103,17 @@ port_busy() { (exec 3<>"/dev/tcp/127.0.0.1/$1") 2>/dev/null; }
 # ------------------------------------------------------------------- preflight
 
 step "Preflight"
+
+# A missing image makes docker try to pull it, which fails with an opaque 401.
+missing_images=()
+for img in "$MINIO_IMAGE" "$MINIO_MC_IMAGE"; do
+	docker image inspect "$img" >/dev/null 2>&1 || missing_images+=("$img")
+done
+if [ "${#missing_images[@]}" -gt 0 ]; then
+	for img in "${missing_images[@]}"; do warn "missing local image: $img"; done
+	die "MinIO images are no longer public — load them from a teammate's export (handover/README.md, \"MinIO images\")"
+fi
+ok "MinIO images present locally"
 
 command -v docker >/dev/null || die "docker is not installed or not on PATH"
 docker info >/dev/null 2>&1 || die "the docker daemon is not reachable — start Docker and retry"
@@ -309,7 +325,7 @@ wait_for "Min_IO" 60 http_ok "http://localhost:$MINIO_PORT/minio/health/live" ||
 info "ensuring the ontolearn-storage bucket exists"
 docker run --rm --network host \
 	-e MC_HOST_local="http://minioadmin:minioadmin@localhost:$MINIO_PORT" \
-	quay.io/minio/mc mb --ignore-existing local/ontolearn-storage ||
+	"$MINIO_MC_IMAGE" mb --ignore-existing local/ontolearn-storage ||
 	die "could not create the MinIO bucket — check MinIO is reachable at :$MINIO_PORT"
 ok "bucket ontolearn-storage ready"
 

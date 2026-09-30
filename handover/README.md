@@ -71,3 +71,29 @@ ABAC service must sign and verify the same JWT - and they are not credentials to
 real, but they must not survive into a deployed environment. Override with
 `SHARED_ABAC_SECRET=... ./scripts/start-local.sh` and generate real values
 (`openssl rand -base64 32`) for anything beyond a laptop.
+
+## MinIO images
+
+MinIO no longer publishes public container images: `quay.io/minio/*` answers
+`401 UNAUTHORIZED` and the Docker Hub images were removed. The stack is pinned to:
+
+- `quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z`
+- `quay.io/minio/mc:RELEASE.2025-08-13T08-35-41Z`
+
+A new machine cannot pull them; copy them from a teammate who has them.
+
+Export (machine that has the images):
+
+```bash
+docker save quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z \
+            quay.io/minio/mc:RELEASE.2025-08-13T08-35-41Z -o minio-images.tar
+```
+
+Import (new machine):
+
+```bash
+docker load -i minio-images.tar
+```
+
+`start-local.sh` checks for both images at preflight and stops with a clear message if
+either is missing.
